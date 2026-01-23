@@ -24,7 +24,7 @@ RUN_URL = os.environ.get("RUN_URL")
 BOT_CI_SESSION = os.environ.get("BOT_CI_SESSION")
 MSG_TEMPLATE = """
 ```
-root impl: {kernelsu}
+root impl: {root}
 ssg io: {ssg}
 stock config: {stock_config}
 rekernel status: {rekernel}
@@ -39,7 +39,7 @@ more ZRAM: {zram}
 
 def get_caption():
     msg = MSG_TEMPLATE.format(
-        kernelsu=KERNELSU,
+        root=KERNELSU,
         ssg=SSG,
         stock_config=STOCK_CONFIG,
         rekernel=REKERNEL,
@@ -68,7 +68,6 @@ async def send_telegram_message(file_path: str):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python send_kernel.py <file_to_upload>")
         sys.exit(1)
 
     file_to_upload = sys.argv[1]
