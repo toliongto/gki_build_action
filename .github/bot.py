@@ -64,7 +64,6 @@ async def send_telegram_message(file_path: str):
             file=file_path,
             parse_mode="markdown",
             caption=get_caption(),
-            reply_to=29147
         )
 
 if __name__ == '__main__':
