@@ -65,7 +65,9 @@ def get_kernel_versions():
     sublevel=""
 
     try:
-        with open("./kernel_workspace/common/Makefile",'r') as file:
+        current_work=os.getcwd()
+        os.chdir(current_work+"/kernel_workspace/common")
+        with open("./Makefile",'r') as file:
             for line in file:
                 if line.startswith("VERSION"):
                     version = line.split('=')[1].strip()
@@ -82,7 +84,8 @@ def get_kernel_versions():
     return f"{version}.{patchlevel}.{sublevel}"
 
 def get_ksu_versions():
-    os.chdir("./kernel_workspace/common/KernelSU")
+    current_work=os.getcwd()
+    os.chdir(current_work+"/kernel_workspace/common/KernelSU")
     ksuver=os.popen("echo $(git describe --tags $(git rev-list --tags --max-count=1))-$(git rev-parse --short HEAD)@$(git branch --show-current)").read().strip()
     return ksuver
 
