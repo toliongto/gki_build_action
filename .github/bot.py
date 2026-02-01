@@ -10,7 +10,6 @@ API_HASH = "d524b414d21f4d37f08684c1df41ac9c"
 
 BETTER_NET = os.environ.get("BETTER_NET")
 REKERNEL = os.environ.get("REKERNEL")
-KERNELSU = os.environ.get("KERNELSU")
 BBG = os.environ.get("BBG")
 LXC = os.environ.get("LXC")
 KERNEL = os.environ.get("KERNEL")
@@ -24,24 +23,33 @@ RUN_URL = os.environ.get("RUN_URL")
 BOT_CI_SESSION = os.environ.get("BOT_CI_SESSION")
 MSG_TEMPLATE = """
 ```
-root impl: {root}
-ssg io: {ssg}
-stock config: {stock_config}
-rekernel status: {rekernel}
-lxc support status: {lxc}
+**New Build Published!**
+#ESK #GKI2
+```Kernel Info
+kernelver: {kernelversion}
+stock: {stock}
+KsuVar: ReSukiSU
+KsuVersion: {ksuver}
 BBG: {bbg}
-better_net status: {better_net}
-more ZRAM: {zram}
+Re:Kernel: {rekernel}
+Mountify support: true
+lxc/docker support {lxc}
+lz4+zstd: {zram}
+SSG speed controller: {ssg}
+better net support: {better_net}
 ```
+Please follow @@esk_gki_build !
+
 [Workflow run]({run_url})
 """.strip()
 
 
 def get_caption():
     msg = MSG_TEMPLATE.format(
-        root=KERNELSU,
+        kernelversion=get_kernel_versions(),
         ssg=SSG,
-        stock_config=STOCK_CONFIG,
+        ksuver=get_ksu_versions(),
+        stock=STOCK_CONFIG,
         rekernel=REKERNEL,
         lxc=LXC,
         bbg=BBG,
@@ -51,6 +59,32 @@ def get_caption():
     )
     return msg
 
+def get_kernel_versions():
+    version=""
+    patchlevel=""
+    sublevel=""
+
+    try:
+        with open("./kernel_workspace/common/Makefile",'r') as file:
+            for line in file:
+                if line.startswith("VERSION"):
+                    version = line.split('=')[1].strip()
+                elif line.startswith("PATCHLEVEL"):
+                    patchlevel = line.split('=')[1].strip()
+                elif line.startswith("SUBLEVEL"):
+                    sublevel = line.split('=')[1].strip()
+                elif line.startswith("#"): # skip comments
+                    continue
+                else:
+                    break
+    except FileNotFoundError:
+        raise
+    return f"{version}.{patchlevel}.{sublevel}"
+
+def get_ksu_versions():
+    os.chdir("./kernel_workspace/common/KernelSU")
+    ksuver=os.popen("echo $(git describe --tags $(git rev-list --tags --max-count=1))-$(git rev-parse --short HEAD)@$(git branch --show-current)").read().strip()
+    return ksuver
 
 async def send_telegram_message(file_path: str):
     async with TelegramClient(StringSession(BOT_CI_SESSION), api_id=API_ID, api_hash=API_HASH) as client:

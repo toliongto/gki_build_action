@@ -367,7 +367,6 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
           BOT_CI_SESSION: ${{ secrets.BOT_CI_SESSION }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          KERNELSU: ${{ env.KERNELSU }}
           SSG: ${{ env.SSG }}
           REKERNEL: ${{ env.REKERNEL }}
           STOCK_CONFIG: ${{ env.STOCK_CONFIG }}
@@ -379,7 +378,6 @@ jobs:
           if [ -z ${{ secrets.BOT_TOKEN }} ]; then
             exit 0
           fi
-          cd ${{ github.workspace }}
           pip3 install telethon
           curl -LSOs https://github.com/Tools-cx-app/gki_build_action/raw/main/.github/bot.py
           python3 bot.py ./kernel_workspace/${{ env.KEY }}.zip
