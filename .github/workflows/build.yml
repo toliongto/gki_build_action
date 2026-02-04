@@ -109,7 +109,7 @@ jobs:
           # 进入内核工作目录
           cd kernel_workspace/common
           if [[ "${{ env.KERNELSU }}" == "true" ]]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s builtin
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s main
           fi
 
       - name: 启用stock config
