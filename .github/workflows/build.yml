@@ -154,8 +154,6 @@ jobs:
           if [[ "${{ env.REKERNEL }}" == "true" ]]; then
             echo "CONFIG_REKERNEL=y" >> "kernel_workspace/common/arch/arm64/configs/gki_defconfig"
             echo "CONFIG_REKERNEL_NETWORK=y" >> "kernel_workspace/common/arch/arm64/configs/gki_defconfig"
-            curl -LSs https://raw.githubusercontent.com/toliongto/gki_build_action/main/patches/nethunter.patch -o nethunter.patch
-            patch -p1 < nethunter.patch
           fi
           
 
