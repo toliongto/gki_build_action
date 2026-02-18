@@ -1,0 +1,238 @@
+--- a/drivers/net/wireless/ath/ath9k/htc_drv_init.c
++++ b/drivers/net/wireless/ath/ath9k/htc_drv_init.c
+@@ -134,7 +134,7 @@ static inline int ath9k_htc_connect_svc(struct ath9k_htc_priv *priv,
+ 	req.ep_callbacks.rx = ath9k_htc_rxep;
+ 	req.ep_callbacks.tx = tx;
+ 
+-	return htc_connect_service(priv->htc, &req, ep_id);
++	return htc_connect_service_hst(priv->htc, &req, ep_id);
+ }
+ 
+ static int ath9k_init_htc_services(struct ath9k_htc_priv *priv, u16 devid,
+--- a/drivers/net/wireless/ath/ath9k/htc_drv_main.c
++++ b/drivers/net/wireless/ath/ath9k/htc_drv_main.c
+@@ -226,7 +226,7 @@ void ath9k_htc_reset(struct ath9k_htc_priv *priv)
+ 	WMI_CMD_BUF(WMI_SET_MODE_CMDID, &htc_mode);
+ 
+ 	WMI_CMD(WMI_ENABLE_INTR_CMDID);
+-	htc_start(priv->htc);
++	htc_start_hst(priv->htc);
+ 	ath9k_htc_vif_reconfig(priv);
+ 	ieee80211_wake_queues(priv->hw);
+ 
+@@ -302,7 +302,7 @@ static int ath9k_htc_set_channel(struct ath9k_htc_priv *priv,
+ 	if (ret)
+ 		goto err;
+ 
+-	htc_start(priv->htc);
++	htc_start_hst(priv->htc);
+ 
+ 	if (!test_bit(ATH_OP_SCANNING, &common->op_flags) &&
+ 	    !(hw->conf.flags & IEEE80211_CONF_OFFCHANNEL))
+@@ -955,7 +955,7 @@ static int ath9k_htc_start(struct ieee80211_hw *hw)
+ 			"Failed to update capability in target\n");
+ 
+ 	clear_bit(ATH_OP_INVALID, &common->op_flags);
+-	htc_start(priv->htc);
++	htc_start_hst(priv->htc);
+ 
+ 	spin_lock_bh(&priv->tx.tx_lock);
+ 	priv->tx.flags &= ~ATH9K_HTC_OP_TX_QUEUES_STOP;
+--- a/drivers/net/wireless/ath/ath9k/htc_drv_txrx.c
++++ b/drivers/net/wireless/ath/ath9k/htc_drv_txrx.c
+@@ -543,7 +543,7 @@ void ath9k_htc_tx_drain(struct ath9k_htc_priv *priv)
+ 	 * Ensure that all pending TX frames are flushed,
+ 	 * and that the TX completion/failed tasklets is killed.
+ 	 */
+-	htc_stop(priv->htc);
++	htc_stop_hst(priv->htc);
+ 	tasklet_kill(&priv->wmi->wmi_event_tasklet);
+ 	tasklet_kill(&priv->tx_failed_tasklet);
+ 
+--- a/drivers/net/wireless/ath/ath9k/htc_hst.c
++++ b/drivers/net/wireless/ath/ath9k/htc_hst.c
+@@ -233,7 +233,7 @@ int htc_init(struct htc_target *target)
+ 	return htc_setup_complete(target);
+ }
+ 
+-int htc_connect_service(struct htc_target *target,
++int htc_connect_service_hst(struct htc_target *target,
+ 		     struct htc_service_connreq *service_connreq,
+ 		     enum htc_endpoint_id *conn_rsp_epid)
+ {
+@@ -307,12 +307,12 @@ int htc_send_epid(struct htc_target *target, struct sk_buff *skb,
+ 	return htc_issue_send(target, skb, skb->len, 0, epid);
+ }
+ 
+-void htc_stop(struct htc_target *target)
++void htc_stop_hst(struct htc_target *target)
+ {
+ 	target->hif->stop(target->hif_dev);
+ }
+ 
+-void htc_start(struct htc_target *target)
++void htc_start_hst(struct htc_target *target)
+ {
+ 	target->hif->start(target->hif_dev);
+ }
+--- a/drivers/net/wireless/ath/ath9k/htc_hst.h
++++ b/drivers/net/wireless/ath/ath9k/htc_hst.h
+@@ -203,14 +203,14 @@ struct htc_comp_msg {
+ } __packed;
+ 
+ int htc_init(struct htc_target *target);
+-int htc_connect_service(struct htc_target *target,
++int htc_connect_service_hst(struct htc_target *target,
+ 			  struct htc_service_connreq *service_connreq,
+ 			  enum htc_endpoint_id *conn_rsp_eid);
+ int htc_send(struct htc_target *target, struct sk_buff *skb);
+ int htc_send_epid(struct htc_target *target, struct sk_buff *skb,
+ 		  enum htc_endpoint_id epid);
+-void htc_stop(struct htc_target *target);
+-void htc_start(struct htc_target *target);
++void htc_stop_hst(struct htc_target *target);
++void htc_start_hst(struct htc_target *target);
+ void htc_sta_drain(struct htc_target *target, u8 idx);
+ 
+ void ath9k_htc_rx_msg(struct htc_target *htc_handle,
+--- a/drivers/net/wireless/ath/ath9k/wmi.c
++++ b/drivers/net/wireless/ath/ath9k/wmi.c
+@@ -261,7 +261,7 @@ int ath9k_wmi_connect(struct htc_target *htc, struct wmi *wmi,
+ 	connect.ep_callbacks.rx = ath9k_wmi_ctrl_rx;
+ 	connect.service_id = WMI_CONTROL_SVC;
+ 
+-	ret = htc_connect_service(htc, &connect, &wmi->ctrl_epid);
++	ret = htc_connect_service_hst(htc, &connect, &wmi->ctrl_epid);
+ 	if (ret)
+ 		return ret;
+	
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -580,7 +580,8 @@ static int ieee80211_set_monitor_channel
+ 			ret = ieee80211_vif_use_channel(sdata, chandef,
+ 					IEEE80211_CHANCTX_EXCLUSIVE);
+ 		}
+-	} else if (local->open_count == local->monitors) {
++       // Patch: Always allow channel change, even if a normal virtual interface is present
++       } else /*if (local->open_count == local->monitors)*/ {
+ 		local->_oper_chandef = *chandef;
+ 		ieee80211_hw_config(local, 0);
+ 	}
+--- a/net/mac80211/tx.c
++++ b/net/mac80211/tx.c
+@@ -795,11 +795,19 @@ ieee80211_tx_h_sequence(struct ieee80211
+ 
+ 	/*
+ 	 * Packet injection may want to control the sequence
+-	 * number, if we have no matching interface then we
+-	 * neither assign one ourselves nor ask the driver to.
++	 * number, so if an injected packet is found, skip
++	 * renumbering it. Also make the packet NO_ACK to avoid
++	 * excessive retries (ACKing and retrying should be
++	 * handled by the injecting application).
++	 * FIXME This may break hostapd and some other injectors.
++	 * This should be done using a radiotap flag.
+ 	 */
+-	if (unlikely(info->control.vif->type == NL80211_IFTYPE_MONITOR))
++	if (unlikely((info->flags & IEEE80211_TX_CTL_INJECTED) &&
++	   !(tx->sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES))) {
++		if (!ieee80211_has_morefrags(hdr->frame_control))
++			info->flags |= IEEE80211_TX_CTL_NO_ACK;
+ 		return TX_CONTINUE;
++	}
+ 
+ 	if (unlikely(ieee80211_is_ctl(hdr->frame_control)))
+ 		return TX_CONTINUE;
+@@ -1659,7 +1667,10 @@ void ieee80211_xmit(struct ieee80211_sub
+ 		}
+ 	}
+ 
+-	ieee80211_set_qos_hdr(sdata, skb);
++        // Don't overwrite QoS header in monitor mode
++        if (likely(info->control.vif->type != NL80211_IFTYPE_MONITOR)) {
++            ieee80211_set_qos_hdr(sdata, skb);
++        }
+ 	ieee80211_tx(sdata, sta, skb, false);
+ }
+ 
+--- a/net/wireless/chan.c
++++ b/net/wireless/chan.c
+@@ -857,8 +857,10 @@ int cfg80211_set_monitor_channel(struct
+ {
+ 	if (!rdev->ops->set_monitor_channel)
+ 		return -EOPNOTSUPP;
+-	if (!cfg80211_has_monitors_only(rdev))
+-		return -EBUSY;
++	// Always allow user to change channel, even if there is another normal
++	// virtual interface using the device.
++	//if (!cfg80211_has_monitors_only(rdev))
++	//	return -EBUSY;
+ 
+ 	return rdev_set_monitor_channel(rdev, chandef);
+ }
+--- a/drivers/net/wireless/zydas/zd1211rw/zd_mac.c
++++ b/drivers/net/wireless/zydas/zd1211rw/zd_mac.c
+@@ -242,14 +242,19 @@ void zd_mac_clear(struct zd_mac *mac)
+ static int set_rx_filter(struct zd_mac *mac)
+ {
+ 	unsigned long flags;
+-	u32 filter = STA_RX_FILTER;
++	struct zd_ioreq32 ioreqs[] = {
++		{CR_RX_FILTER, STA_RX_FILTER},
++		{ CR_SNIFFER_ON, 0U },
++	};
+ 
+ 	spin_lock_irqsave(&mac->lock, flags);
+-	if (mac->pass_ctrl)
+-		filter |= RX_FILTER_CTRL;
++	if (mac->pass_ctrl) {
++		ioreqs[0].value |= 0xFFFFFFFF;
++		ioreqs[1].value = 0x1;
++	}
+ 	spin_unlock_irqrestore(&mac->lock, flags);
+ 
+-	return zd_iowrite32(&mac->chip, CR_RX_FILTER, filter);
++	return zd_iowrite32a(&mac->chip, ioreqs, ARRAY_SIZE(ioreqs));
+ }
+ 
+ static int set_mac_and_bssid(struct zd_mac *mac)
+@@ -1057,7 +1062,8 @@ int zd_mac_rx(struct ieee80211_hw *hw, c
+ 	/* Caller has to ensure that length >= sizeof(struct rx_status). */
+ 	status = (struct rx_status *)
+ 		(buffer + (length - sizeof(struct rx_status)));
+-	if (status->frame_status & ZD_RX_ERROR) {
++	if ((status->frame_status & ZD_RX_ERROR) || 
++		(status->frame_status & ~0x21)) {
+ 		if (mac->pass_failed_fcs &&
+ 				(status->frame_status & ZD_RX_CRC32_ERROR)) {
+ 			stats.flag |= RX_FLAG_FAILED_FCS_CRC;
+@@ -1400,7 +1406,7 @@ struct ieee80211_hw *zd_mac_alloc_hw(str
+ 	ieee80211_hw_set(hw, MFP_CAPABLE);
+ 	ieee80211_hw_set(hw, HOST_BROADCAST_PS_BUFFERING);
+ 	ieee80211_hw_set(hw, RX_INCLUDES_FCS);
+-	ieee80211_hw_set(hw, SIGNAL_UNSPEC);
++	ieee80211_hw_set(hw, SIGNAL_DBM);
+ 
+ 	hw->wiphy->interface_modes =
+ 		BIT(NL80211_IFTYPE_MESH_POINT) |
+--- a/drivers/net/wireless/realtek/rtl818x/rtl8187/dev.c
++++ b/drivers/net/wireless/realtek/rtl818x/rtl8187/dev.c
+@@ -251,8 +251,17 @@ static void rtl8187_tx(struct ieee80211_
+ 	flags |= RTL818X_TX_DESC_FLAG_NO_ENC;
+ 
+ 	flags |= ieee80211_get_tx_rate(dev, info)->hw_value << 24;
++
++	// When this flag is set the firmware waits untill ALL fragments have
++	// reached the USB device. Then it sends the first fragment and waits
++	// for ACKS's. Of course in monitor mode it won't detect these ACK's.
+ 	if (ieee80211_has_morefrags(tx_hdr->frame_control))
+-		flags |= RTL818X_TX_DESC_FLAG_MOREFRAG;
++	{
++		// If info->control.vif is NULL it's most likely in monitor mode
++		if (likely(info->control.vif != NULL && info->control.vif->type != NL80211_IFTYPE_MONITOR)) {
++			flags |= RTL818X_TX_DESC_FLAG_MOREFRAG;
++		}
++	}
+ 
+ 	/* HW will perform RTS-CTS when only RTS flags is set.
+ 	 * HW will perform CTS-to-self when both RTS and CTS flags are set.
